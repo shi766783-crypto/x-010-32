@@ -1,10 +1,11 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTravelStore } from '../stores/travel'
 import { formatMoney, formatDate } from '../utils/format'
 import { planTotalSpend, planPackingRate } from '../services/selectors'
 import StarRating from '../components/common/StarRating.vue'
+import DonutChart from '../components/charts/DonutChart.vue'
 
 const store = useTravelStore()
 const router = useRouter()
@@ -12,6 +13,22 @@ const router = useRouter()
 const stats = computed(() => store.dashboardStats)
 const unlocked = computed(() => store.achievements.filter((a) => a.unlocked))
 const summarized = computed(() => store.plans.filter((p) => p.summary))
+
+// ===== 年度花费回顾（默认当前年） =====
+const currentYear = new Date().getFullYear()
+const selectedYear = ref(currentYear)
+const yearly = computed(() => store.yearlyStats(selectedYear.value))
+const money = (v) => formatMoney(v)
+
+const yearIndex = computed(() => yearly.value.years.indexOf(selectedYear.value))
+const hasPrevYear = computed(() => yearIndex.value > 0)
+const hasNextYear = computed(() => yearIndex.value < yearly.value.years.length - 1)
+
+function switchYear(year) {
+  const years = yearly.value.years
+  if (year < years[0] || year > years[years.length - 1]) return
+  selectedYear.value = year
+}
 </script>
 
 <template>
@@ -30,6 +47,46 @@ const summarized = computed(() => store.plans.filter((p) => p.summary))
         <span class="stat-label">已解锁徽章</span>
         <strong>{{ unlocked.length }} / {{ store.totalAchievements }}</strong>
       </div>
+    </div>
+
+    <!-- 年度花费回顾 -->
+    <div class="card mt-16">
+      <div class="card-title">
+        <span>年度花费回顾</span>
+        <div class="year-switch">
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="!hasPrevYear"
+            @click="switchYear(selectedYear - 1)"
+          >&lt;</button>
+          <select v-model.number="selectedYear" class="select year-select">
+            <option v-for="y in yearly.years" :key="y" :value="y">{{ y }}年</option>
+          </select>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="!hasNextYear"
+            @click="switchYear(selectedYear + 1)"
+          >&gt;</button>
+        </div>
+      </div>
+
+      <template v-if="yearly.hasData">
+        <div class="year-summary">
+          <div class="stat year-stat">
+            <span class="stat-label">总花费</span>
+            <strong>{{ formatMoney(yearly.totalSpend) }}</strong>
+          </div>
+          <div class="stat year-stat">
+            <span class="stat-label">出行次数</span>
+            <strong>{{ yearly.totalTrips }} 次</strong>
+          </div>
+        </div>
+        <h4 class="section-subtitle">分类占比</h4>
+        <DonutChart :data="yearly.categorySpend" :formatter="money" />
+      </template>
+      <p v-else class="empty">{{ selectedYear }}年暂无出行花费记录</p>
     </div>
 
     <!-- 我的出行计划 -->
@@ -99,6 +156,37 @@ const summarized = computed(() => store.plans.filter((p) => p.summary))
 
 .link-row {
   cursor: pointer;
+}
+
+.year-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.year-select {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 13px;
+}
+
+.year-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.year-stat {
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+}
+
+.section-subtitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
 }
 
 .summary-list {

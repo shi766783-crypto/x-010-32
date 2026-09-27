@@ -54,6 +54,33 @@ export function computeDashboardStats(plans) {
   }
 }
 
+// ===== 年度花费回顾 =====
+// 统计口径与看板一致：按出行计划聚合（以出行开始日期归属年份）
+export function planYear(plan) {
+  const match = String(plan.startDate || '').match(/^(\d{4})/)
+  return match ? Number(match[1]) : null
+}
+
+export function computeYearlyStats(plans, year) {
+  const years = plans
+    .map(planYear)
+    .filter((y) => y !== null)
+  const minYear = years.length ? Math.min(...years) : year
+  const maxYear = Math.max(year, years.length ? Math.max(...years) : year)
+
+  const yearPlans = plans.filter((p) => planYear(p) === year)
+  const stats = computeDashboardStats(yearPlans)
+
+  return {
+    year,
+    years: Array.from({ length: maxYear - minYear + 1 }, (_, i) => minYear + i),
+    hasData: yearPlans.length > 0,
+    totalSpend: stats.totalSpend,
+    totalTrips: stats.totalTrips,
+    categorySpend: stats.categorySpend,
+  }
+}
+
 // ===== 成员聚合（供排行榜使用） =====
 export function computeMemberLeaderboard(plans) {
   const map = new Map()
