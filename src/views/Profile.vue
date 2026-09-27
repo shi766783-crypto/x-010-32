@@ -1,10 +1,11 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTravelStore } from '../stores/travel'
 import { formatMoney, formatDate } from '../utils/format'
 import { planTotalSpend, planPackingRate } from '../services/selectors'
 import StarRating from '../components/common/StarRating.vue'
+import DonutChart from '../components/charts/DonutChart.vue'
 
 const store = useTravelStore()
 const router = useRouter()
@@ -12,6 +13,24 @@ const router = useRouter()
 const stats = computed(() => store.dashboardStats)
 const unlocked = computed(() => store.achievements.filter((a) => a.unlocked))
 const summarized = computed(() => store.plans.filter((p) => p.summary))
+
+// ===== 年度花费回顾（默认展示当年） =====
+const selectedYear = ref(new Date().getFullYear())
+const yearBounds = computed(() => store.yearBounds)
+const yearly = computed(() => store.yearlyStats(selectedYear.value))
+
+// 出行数据变化时，保证选中年份落在可切换范围内
+watch(yearBounds, ({ min, max }) => {
+  if (selectedYear.value < min) selectedYear.value = min
+  if (selectedYear.value > max) selectedYear.value = max
+})
+
+function shiftYear(step) {
+  selectedYear.value = Math.min(
+    yearBounds.value.max,
+    Math.max(yearBounds.value.min, selectedYear.value + step)
+  )
+}
 </script>
 
 <template>
@@ -30,6 +49,46 @@ const summarized = computed(() => store.plans.filter((p) => p.summary))
         <span class="stat-label">已解锁徽章</span>
         <strong>{{ unlocked.length }} / {{ store.totalAchievements }}</strong>
       </div>
+    </div>
+
+    <!-- 年度花费回顾 -->
+    <div class="card mt-16">
+      <h3 class="card-title">
+        年度花费回顾
+        <span class="year-switcher">
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="selectedYear <= yearBounds.min"
+            @click="shiftYear(-1)"
+          >‹</button>
+          <span class="year-label">{{ selectedYear }} 年</span>
+          <button
+            type="button"
+            class="btn btn-ghost btn-sm"
+            :disabled="selectedYear >= yearBounds.max"
+            @click="shiftYear(1)"
+          >›</button>
+        </span>
+      </h3>
+
+      <template v-if="yearly.totalTrips">
+        <div class="year-stats">
+          <div class="year-stat">
+            <span class="stat-label">年度总花费</span>
+            <strong>{{ formatMoney(yearly.totalSpend) }}</strong>
+          </div>
+          <div class="year-stat">
+            <span class="stat-label">出行次数</span>
+            <strong>{{ yearly.totalTrips }} 次</strong>
+          </div>
+        </div>
+
+        <h4 class="section-label">分类占比</h4>
+        <DonutChart :data="yearly.categorySpend" :formatter="formatMoney" />
+      </template>
+
+      <p v-else class="empty">{{ selectedYear }} 年暂无出行花费记录</p>
     </div>
 
     <!-- 我的出行计划 -->
@@ -99,6 +158,52 @@ const summarized = computed(() => store.plans.filter((p) => p.summary))
 
 .link-row {
   cursor: pointer;
+}
+
+.year-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.year-switcher .btn {
+  padding: 2px 10px;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.year-label {
+  min-width: 68px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.year-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.year-stat {
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.year-stat strong {
+  font-size: 22px;
+  margin-top: 4px;
+}
+
+.section-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
 }
 
 .summary-list {

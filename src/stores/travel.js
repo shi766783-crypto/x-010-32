@@ -3,7 +3,12 @@ import { planStorage } from '../services/storage'
 import { generateLuggageTemplate, getDestinationType } from '../services/luggage'
 import { generateDefaultTodos } from '../services/todo'
 import { computeAchievements, TOTAL_ACHIEVEMENTS } from '../services/achievements'
-import { computeDashboardStats, computeMemberLeaderboard } from '../services/stats'
+import {
+  computeDashboardStats,
+  computeMemberLeaderboard,
+  computeYearlyStats,
+  getYearBounds,
+} from '../services/stats'
 import { daysBetween } from '../utils/format'
 import { uid } from '../utils/id'
 
@@ -24,6 +29,10 @@ export const useTravelStore = defineStore('travel', {
     totalAchievements: () => TOTAL_ACHIEVEMENTS,
     dashboardStats: (state) => computeDashboardStats(state.plans),
     leaderboard: (state) => computeMemberLeaderboard(state.plans),
+    // 年度花费汇总（口径与出行看板一致）
+    yearlyStats: (state) => (year) => computeYearlyStats(state.plans, year),
+    // 可切换的年份范围（始终包含当前年份）
+    yearBounds: (state) => getYearBounds(state.plans, new Date().getFullYear()),
     planById: (state) => (id) => state.plans.find((p) => p.id === id),
   },
 

@@ -2,10 +2,46 @@ import { TRIP_TYPES, EXPENSE_CATEGORIES } from '../constants'
 import { luggageCompletionRate } from './luggage'
 import { planTotalSpend, planPackingRate, planSpendBreakdown } from './selectors'
 
-// ===== 出行看板统计 =====
-export function computeDashboardStats(plans) {
+// 出行所属年份（按开始日期归属，无有效日期返回 null）
+export function planYear(plan) {
+  const year = Number(String(plan?.startDate || '').slice(0, 4))
+  return year > 0 ? year : null
+}
+
+// 花费汇总口径（出行看板 / 年度回顾共用）：出行次数、总花费、分类花费
+export function aggregateSpendStats(plans) {
   const totalTrips = plans.length
   const totalSpend = plans.reduce((sum, p) => sum + planTotalSpend(p), 0)
+
+  // 花费分类汇总
+  const categorySpend = EXPENSE_CATEGORIES.map(({ label }) => ({ label, value: 0 }))
+  plans.forEach((p) => {
+    const breakdown = planSpendBreakdown(p)
+    categorySpend.forEach((c) => {
+      c.value += breakdown[c.label] || 0
+    })
+  })
+
+  return { totalTrips, totalSpend, categorySpend }
+}
+
+// 可切换的年份范围（始终包含当前年份，边界按升序返回）
+export function getYearBounds(plans, currentYear) {
+  const years = plans.map(planYear).filter((y) => y !== null)
+  return {
+    min: Math.min(currentYear, ...years),
+    max: Math.max(currentYear, ...years),
+  }
+}
+
+// 年度花费汇总（统计口径与出行看板一致，仅按年份筛选出行）
+export function computeYearlyStats(plans, year) {
+  return aggregateSpendStats(plans.filter((p) => planYear(p) === year))
+}
+
+// ===== 出行看板统计 =====
+export function computeDashboardStats(plans) {
+  const { totalTrips, totalSpend, categorySpend } = aggregateSpendStats(plans)
   const totalBudget = plans.reduce((sum, p) => sum + (Number(p.budget) || 0), 0)
   const totalDays = plans.reduce((sum, p) => sum + (Number(p.days) || 0), 0)
 
@@ -27,15 +63,6 @@ export function computeDashboardStats(plans) {
     label,
     value: plans.filter((p) => p.tripType === label).length,
   }))
-
-  // 花费分类汇总（所有出行）
-  const categorySpend = EXPENSE_CATEGORIES.map(({ label }) => ({ label, value: 0 }))
-  plans.forEach((p) => {
-    const breakdown = planSpendBreakdown(p)
-    categorySpend.forEach((c) => {
-      c.value += breakdown[c.label] || 0
-    })
-  })
 
   // 各次出行花费对比
   const perTripSpend = plans.map((p) => ({ label: p.name, value: planTotalSpend(p) }))
